@@ -1,0 +1,818 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>LandslideAI — Detection System</title>
+{% load static %}
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg:       #0d1117;
+    --surface:  #161b22;
+    --border:   #21262d;
+    --border2:  #30363d;
+    --text:     #e6edf3;
+    --muted:    #8b949e;
+    --accent:   #3b82f6;
+    --green:    #22c55e;
+    --amber:    #f59e0b;
+    --red:      #ef4444;
+    --purple:   #8b5cf6;
+    --low:      #22c55e;
+    --moderate: #f59e0b;
+    --high:     #ef4444;
+    --critical: #8b5cf6;
+    --mono:     'JetBrains Mono', monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:'Space Grotesk',sans-serif;min-height:100vh;overflow-x:hidden}
+  ::selection{background:rgba(59,130,246,.3)}
+  ::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:var(--bg)}::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+
+  /* NAV */
+  nav{display:flex;align-items:center;justify-content:space-between;padding:0 2rem;height:56px;background:rgba(22,27,34,.9);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100;backdrop-filter:blur(12px)}
+  .logo{display:flex;align-items:center;gap:10px;font-size:1.1rem;font-weight:700;letter-spacing:-.02em}
+  .logo-icon{width:30px;height:30px;background:linear-gradient(135deg,#3b82f6,#8b5cf6);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:15px}
+  .nav-badge{background:#1e3a5f;color:#60a5fa;font-size:11px;font-weight:600;padding:2px 8px;border-radius:20px;border:1px solid #1d4ed8;font-family:var(--mono)}
+  .nav-links{display:flex;gap:4px}
+  .nav-link{padding:6px 14px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;color:var(--muted);transition:all .15s}
+  .nav-link:hover,.nav-link.active{background:var(--border);color:var(--text)}
+
+  /* LAYOUT */
+  .container{max-width:1280px;margin:0 auto;padding:2rem}
+  .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:1.5rem}
+  .grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem}
+  .grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem}
+
+  /* CARDS */
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.5rem;transition:border-color .2s}
+  .card:hover{border-color:var(--border2)}
+  .card-title{font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:1rem;display:flex;align-items:center;gap:8px}
+  .card-title svg{opacity:.7}
+
+  /* STAT CARDS */
+  .stat-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:1.2rem;position:relative;overflow:hidden}
+  .stat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;border-radius:2px 2px 0 0}
+  .stat-blue::before{background:var(--accent)}
+  .stat-green::before{background:var(--green)}
+  .stat-amber::before{background:var(--amber)}
+  .stat-purple::before{background:var(--purple)}
+  .stat-label{font-size:12px;color:var(--muted);font-weight:500;margin-bottom:.5rem}
+  .stat-value{font-size:2rem;font-weight:700;font-family:var(--mono);line-height:1}
+  .stat-sub{font-size:11px;color:var(--muted);margin-top:.4rem}
+
+  /* FORM */
+  .form-group{margin-bottom:1.2rem}
+  label{display:block;font-size:12px;font-weight:600;color:var(--muted);margin-bottom:.4rem;text-transform:uppercase;letter-spacing:.05em}
+  input[type=text],input[type=number],input[type=date],textarea,select{
+    width:100%;background:var(--bg);border:1px solid var(--border2);border-radius:8px;
+    padding:.65rem .9rem;color:var(--text);font-size:14px;font-family:'Space Grotesk',sans-serif;
+    transition:border-color .15s;outline:none
+  }
+  input:focus,textarea:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(59,130,246,.1)}
+  textarea{resize:vertical;min-height:70px}
+  .form-row{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+  .form-row-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.75rem}
+  .hint{font-size:11px;color:var(--muted);margin-top:.3rem}
+
+  /* UPLOAD ZONE */
+  .upload-zone{border:2px dashed var(--border2);border-radius:12px;padding:2.5rem;text-align:center;cursor:pointer;transition:all .2s;position:relative;background:rgba(59,130,246,.02)}
+  .upload-zone:hover,.upload-zone.drag{border-color:var(--accent);background:rgba(59,130,246,.06)}
+  .upload-zone input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+  .upload-icon{font-size:2.5rem;margin-bottom:.75rem}
+  .upload-text{font-size:15px;font-weight:600;margin-bottom:.3rem}
+  .upload-sub{font-size:13px;color:var(--muted)}
+  #preview-img{width:100%;max-height:220px;object-fit:cover;border-radius:8px;border:1px solid var(--border);display:none;margin-top:1rem}
+
+  /* BUTTONS */
+  .btn{display:inline-flex;align-items:center;gap:8px;padding:.75rem 1.5rem;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;border:none;transition:all .15s;font-family:'Space Grotesk',sans-serif}
+  .btn-primary{background:var(--accent);color:#fff}
+  .btn-primary:hover{background:#2563eb;transform:translateY(-1px)}
+  .btn-primary:active{transform:translateY(0)}
+  .btn-primary:disabled{background:#1e3a5f;color:var(--muted);cursor:not-allowed;transform:none}
+  .btn-danger{background:transparent;color:var(--red);border:1px solid var(--red);padding:.4rem .8rem;font-size:12px}
+  .btn-danger:hover{background:rgba(239,68,68,.1)}
+  .btn-ghost{background:transparent;border:1px solid var(--border2);color:var(--muted)}
+  .btn-ghost:hover{border-color:var(--border);color:var(--text);background:var(--border)}
+  .btn-full{width:100%;justify-content:center}
+
+  /* RISK BADGE */
+  .risk-badge{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600;font-family:var(--mono);text-transform:uppercase;letter-spacing:.04em}
+  .risk-low     {background:rgba(34,197,94,.12); color:var(--low);    border:1px solid rgba(34,197,94,.25)}
+  .risk-moderate{background:rgba(245,158,11,.12);color:var(--amber);  border:1px solid rgba(245,158,11,.25)}
+  .risk-high    {background:rgba(239,68,68,.12); color:var(--red);    border:1px solid rgba(239,68,68,.25)}
+  .risk-critical{background:rgba(139,92,246,.12);color:var(--purple); border:1px solid rgba(139,92,246,.25)}
+  .risk-dot{width:6px;height:6px;border-radius:50%;background:currentColor}
+
+  /* PROGRESS BAR */
+  .progress-bar{height:8px;border-radius:4px;background:var(--border);overflow:hidden;margin:.5rem 0}
+  .progress-fill{height:100%;border-radius:4px;transition:width .8s cubic-bezier(.4,0,.2,1)}
+
+  /* RESULT PANEL */
+  #result-panel{display:none}
+  .result-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem;padding-bottom:1rem;border-bottom:1px solid var(--border)}
+  .prob-display{text-align:center;padding:1.5rem;background:var(--bg);border-radius:10px;border:1px solid var(--border)}
+  .prob-number{font-size:3rem;font-weight:700;font-family:var(--mono);line-height:1}
+  .prob-label{font-size:13px;color:var(--muted);margin-top:.4rem}
+  .viz-tabs{display:flex;gap:4px;margin-bottom:1rem;background:var(--bg);padding:4px;border-radius:8px;border:1px solid var(--border)}
+  .viz-tab{flex:1;padding:.5rem;text-align:center;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;color:var(--muted);transition:all .15s}
+  .viz-tab.active{background:var(--surface);color:var(--text);border:1px solid var(--border2)}
+  .viz-img{width:100%;border-radius:8px;border:1px solid var(--border);display:none}
+  .viz-img.active{display:block}
+
+  /* HISTORY TABLE */
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{text-align:left;padding:.75rem 1rem;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);border-bottom:1px solid var(--border)}
+  td{padding:.75rem 1rem;border-bottom:1px solid var(--border);vertical-align:middle}
+  tr:last-child td{border-bottom:none}
+  tr:hover td{background:rgba(255,255,255,.02)}
+  .thumb{width:36px;height:36px;border-radius:6px;object-fit:cover;border:1px solid var(--border)}
+
+  /* MAP */
+  #map{height:320px;border-radius:10px;border:1px solid var(--border);overflow:hidden}
+
+  /* FEATURE BARS */
+  .feat-row{display:flex;align-items:center;gap:.75rem;margin-bottom:.6rem}
+  .feat-name{font-size:12px;color:var(--muted);font-family:var(--mono);width:120px;flex-shrink:0}
+  .feat-bar{flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden}
+  .feat-fill{height:100%;border-radius:3px;background:var(--accent)}
+  .feat-val{font-size:12px;font-family:var(--mono);width:55px;text-align:right;color:var(--muted)}
+
+  /* LOADER */
+  .loader{display:none;flex-direction:column;align-items:center;justify-content:center;gap:1rem;padding:3rem}
+  .spinner{width:48px;height:48px;border:3px solid var(--border2);border-top-color:var(--accent);border-radius:50%;animation:spin 1s linear infinite}
+  .loader-text{font-size:14px;color:var(--muted);font-family:var(--mono)}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  /* PAGE SECTIONS */
+  .page-section{display:none}
+  .page-section.active{display:block}
+
+  /* TOAST */
+  .toast{position:fixed;bottom:2rem;right:2rem;padding:1rem 1.5rem;border-radius:10px;font-size:14px;font-weight:500;z-index:999;transform:translateY(100px);opacity:0;transition:all .3s;max-width:350px}
+  .toast.show{transform:translateY(0);opacity:1}
+  .toast-success{background:#052e16;color:#4ade80;border:1px solid #166534}
+  .toast-error{background:#1c0606;color:#f87171;border:1px solid #991b1b}
+
+  /* SECTION HEADER */
+  .section-header{margin-bottom:1.5rem}
+  .section-title{font-size:1.4rem;font-weight:700;letter-spacing:-.02em;margin-bottom:.3rem}
+  .section-sub{font-size:14px;color:var(--muted)}
+
+  @media(max-width:768px){
+    .grid-2,.grid-3,.grid-4{grid-template-columns:1fr}
+    .form-row,.form-row-3{grid-template-columns:1fr}
+    nav{padding:0 1rem}
+    .container{padding:1rem}
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="logo">
+    <div class="logo-icon">🛰</div>
+    LandslideAI
+    <span class="nav-badge">v1.0</span>
+  </div>
+  <div class="nav-links">
+    <div class="nav-link active" onclick="showPage('analyze')">Analyze</div>
+    <div class="nav-link" onclick="showPage('history')">History</div>
+    <div class="nav-link" onclick="showPage('dashboard')">Dashboard</div>
+  </div>
+</nav>
+
+<div class="container">
+
+  <!-- ─── ANALYZE PAGE ─────────────────────────────────────────────────────── -->
+  <div id="page-analyze" class="page-section active">
+    <div class="section-header">
+      <div class="section-title">New Landslide Analysis</div>
+      <div class="section-sub">Upload a satellite or aerial image and provide event details for AI-powered landslide detection.</div>
+    </div>
+
+    <div class="grid-2">
+      <!-- LEFT: Form -->
+      <div>
+        <div class="card" style="margin-bottom:1.5rem">
+          <div class="card-title">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            Image Upload
+          </div>
+          <div class="upload-zone" id="upload-zone">
+            <input type="file" id="image-input" accept="image/*" onchange="handleImageSelect(this)"/>
+            <div class="upload-icon">🛰️</div>
+            <div class="upload-text">Drop satellite image here</div>
+            <div class="upload-sub">PNG, JPG, TIFF — max 50MB</div>
+          </div>
+          <img id="preview-img" alt="Preview"/>
+          <input type="hidden" id="fetched-image-path" name="fetched_image_path"/>
+        </div>
+
+        <div class="card">
+          <div class="card-title">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            Event Details
+          </div>
+
+          <div class="form-group">
+            <label>Location Name</label>
+            <input type="text" id="location-name" placeholder="e.g. Amalfi Coast, Italy"/>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Latitude</label>
+              <input type="number" id="latitude" placeholder="e.g. 40.634" step="0.0001"/>
+            </div>
+            <div class="form-group">
+              <label>Longitude</label>
+              <input type="number" id="longitude" placeholder="e.g. 14.603" step="0.0001"/>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Event Date</label>
+              <input type="date" id="event-date"/>
+            </div>
+            <div class="form-group">
+              <label>Description</label>
+              <input type="text" id="description" placeholder="Brief notes"/>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT: ML Features + Submit -->
+      <div>
+        <div class="card" style="margin-bottom:1.5rem">
+          <div class="card-title">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            ML Feature Values
+            <span style="font-size:11px;color:var(--green);margin-left:auto;font-weight:500">Auto-extracted if blank</span>
+          </div>
+          <div class="hint" style="margin-bottom:1rem">Leave fields blank to auto-extract from the uploaded image. Fill manually if you have Sentinel-2 GEE data.</div>
+
+          <div class="form-row-3">
+            <div class="form-group">
+              <label>NDVI</label>
+              <input type="number" id="f-ndvi" placeholder="auto" step="0.001" min="-1" max="1"/>
+              <div class="hint">−1 to 1</div>
+            </div>
+            <div class="form-group">
+              <label>NDVI Change</label>
+              <input type="number" id="f-ndvi-change" placeholder="auto" step="0.001"/>
+              <div class="hint">Pre→Post diff</div>
+            </div>
+            <div class="form-group">
+              <label>Band 3 (Green)</label>
+              <input type="number" id="f-b3" placeholder="auto" step="0.001" min="0" max="1"/>
+              <div class="hint">S2 Green mean</div>
+            </div>
+          </div>
+
+          <div class="form-row-3">
+            <div class="form-group">
+              <label>Slope Mean °</label>
+              <input type="number" id="f-slope" placeholder="auto" step="0.1" min="0"/>
+              <div class="hint">Terrain slope</div>
+            </div>
+            <div class="form-group">
+              <label>Brightness</label>
+              <input type="number" id="f-brightness" placeholder="auto" step="0.001" min="0" max="1"/>
+              <div class="hint">Image mean</div>
+            </div>
+            <div class="form-group">
+              <label>RG Ratio Δ</label>
+              <input type="number" id="f-rg" placeholder="auto" step="0.001"/>
+              <div class="hint">Red/Green change</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+            Run Detection
+          </div>
+
+          <button class="btn btn-primary btn-full" id="submit-btn" onclick="submitAnalysis()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            Analyze for Landslide
+          </button>
+
+          <div class="loader" id="loader">
+            <div class="spinner"></div>
+            <div class="loader-text" id="loader-msg">Running ML pipeline...</div>
+          </div>
+        </div>
+
+        <!-- Map -->
+        <div class="card" style="margin-top:1.5rem">
+          <div class="card-title">📍 Location Map</div>
+          <div id="map"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RESULT PANEL -->
+    <div id="result-panel" style="margin-top:2rem">
+      <div class="card">
+        <div class="result-header">
+          <div>
+            <div style="font-size:18px;font-weight:700;margin-bottom:.3rem">Analysis Complete</div>
+            <div id="res-location" style="font-size:13px;color:var(--muted)"></div>
+          </div>
+          <div id="res-risk-badge"></div>
+        </div>
+
+        <div class="grid-4" style="margin-bottom:1.5rem">
+          <div class="prob-display">
+            <div class="prob-number" id="res-prob">—</div>
+            <div class="prob-label">Landslide Probability</div>
+            <div class="progress-bar" style="margin-top:.8rem">
+              <div class="progress-fill" id="res-prob-bar" style="width:0%;background:var(--accent)"></div>
+            </div>
+          </div>
+          <div class="prob-display">
+            <div class="prob-number" id="res-conf">—</div>
+            <div class="prob-label">Confidence Score</div>
+          </div>
+          <div class="prob-display">
+            <div class="prob-number" id="res-class" style="font-size:1.5rem">—</div>
+            <div class="prob-label">Predicted Class</div>
+          </div>
+          <div class="prob-display">
+            <div class="prob-number" id="res-risk-text" style="font-size:1.5rem">—</div>
+            <div class="prob-label">Risk Level</div>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <!-- Visualizations -->
+          <div>
+            <div class="card-title">Visualizations</div>
+            <div class="viz-tabs">
+              <div class="viz-tab active" onclick="showViz('heatmap',this)">Heatmap</div>
+              <div class="viz-tab" onclick="showViz('segmentation',this)">Segmentation</div>
+              <div class="viz-tab" onclick="showViz('features',this)">Features</div>
+            </div>
+            <img id="viz-heatmap"      class="viz-img active" alt="Heatmap"/>
+            <img id="viz-segmentation" class="viz-img" alt="Segmentation"/>
+            <img id="viz-features"     class="viz-img" alt="Feature Chart"/>
+          </div>
+
+          <!-- Feature importance -->
+          <div>
+            <div class="card-title">Feature Importance</div>
+            <div id="feat-importance-bars"></div>
+            <div style="margin-top:1.5rem">
+              <div class="card-title">Extracted Features</div>
+              <div id="extracted-features"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── HISTORY PAGE ──────────────────────────────────────────────────────── -->
+  <div id="page-history" class="page-section">
+    <div class="section-header" style="display:flex;align-items:center;justify-content:space-between">
+      <div>
+        <div class="section-title">Analysis History</div>
+        <div class="section-sub">All previous landslide detection runs</div>
+      </div>
+      <button class="btn btn-ghost" onclick="loadHistory()">↻ Refresh</button>
+    </div>
+
+    <div class="card">
+      <div id="history-loader" class="loader" style="display:flex"><div class="spinner"></div></div>
+      <div id="history-empty" style="display:none;text-align:center;padding:3rem;color:var(--muted)">
+        <div style="font-size:2rem;margin-bottom:.75rem">🛰️</div>
+        <div style="font-size:15px;font-weight:600;margin-bottom:.3rem">No analyses yet</div>
+        <div style="font-size:13px">Upload an image to run your first detection.</div>
+      </div>
+      <div id="history-table-wrap" style="display:none">
+        <table>
+          <thead>
+            <tr>
+              <th>Image</th><th>Location</th><th>Date</th>
+              <th>Risk</th><th>Probability</th><th>Status</th><th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="history-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── DASHBOARD PAGE ───────────────────────────────────────────────────── -->
+  <div id="page-dashboard" class="page-section">
+    <div class="section-header">
+      <div class="section-title">Dashboard</div>
+      <div class="section-sub">Summary statistics and risk distribution across all analyses</div>
+    </div>
+
+    <div class="grid-4" style="margin-bottom:1.5rem">
+      <div class="stat-card stat-blue"><div class="stat-label">Total Analyses</div><div class="stat-value" id="stat-total">—</div></div>
+      <div class="stat-card stat-green"><div class="stat-label">Completed</div><div class="stat-value" id="stat-completed">—</div></div>
+      <div class="stat-card stat-amber"><div class="stat-label">Landslides Detected</div><div class="stat-value" id="stat-detected">—</div></div>
+      <div class="stat-card stat-purple"><div class="stat-label">Avg Probability</div><div class="stat-value" id="stat-avg">—</div><div class="stat-sub">across completed runs</div></div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">Risk Distribution</div>
+        <canvas id="risk-chart" height="200"></canvas>
+      </div>
+      <div class="card">
+        <div class="card-title">Recent Analyses</div>
+        <div id="recent-list"></div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /container -->
+
+<div id="toast" class="toast"></div>
+
+<script>
+// ─── State ────────────────────────────────────────────────────────────────────
+let selectedFile = null;
+let map = null;
+let marker = null;
+let riskChart = null;
+
+// ─── Page navigation ──────────────────────────────────────────────────────────
+function showPage(page) {
+  document.querySelectorAll('.page-section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+  document.getElementById('page-' + page).classList.add('active');
+  document.querySelector(`.nav-link[onclick="showPage('${page}')"]`).classList.add('active');
+  if (page === 'history')   loadHistory();
+  if (page === 'dashboard') loadDashboard();
+}
+
+// ─── Map init ─────────────────────────────────────────────────────────────────
+window.addEventListener('load', () => {
+  map = L.map('map', { zoomControl: true }).setView([20, 78], 4);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    attribution: '©OpenStreetMap ©CARTO', maxZoom: 18
+  }).addTo(map);
+
+  map.on('click', async (e) => {
+    const { lat, lng } = e.latlng;
+    document.getElementById('latitude').value  = lat.toFixed(5);
+    document.getElementById('longitude').value = lng.toFixed(5);
+    placeMarker(lat, lng);
+
+    // Show fetch button as a popup on the map
+    L.popup()
+        .setLatLng(e.latlng)
+        .setContent(`
+            <div style="text-align:center;font-family:sans-serif">
+                <div style="font-size:13px;margin-bottom:8px">
+                    <b>${lat.toFixed(4)}, ${lng.toFixed(4)}</b>
+                </div>
+                <button onclick="fetchSatelliteForLocation(${lat}, ${lng})"
+                    style="background:#3b82f6;color:#fff;border:none;padding:8px 16px;
+                           border-radius:6px;cursor:pointer;font-size:13px;font-weight:600">
+                    🛰 Fetch Satellite Image
+                </button>
+            </div>
+        `)
+        .openOn(map);
+});
+
+  ['latitude','longitude'].forEach(id => {
+    document.getElementById(id).addEventListener('change', syncMarker);
+  });
+
+  setupDragDrop();
+});
+
+function placeMarker(lat, lng) {
+  if (marker) map.removeLayer(marker);
+  marker = L.circleMarker([lat, lng], {
+    radius: 8, fillColor: '#ef4444', color: '#fff', weight: 2,
+    fillOpacity: 0.9
+  }).addTo(map);
+  map.setView([lat, lng], 10);
+}
+
+function syncMarker() {
+  const lat = parseFloat(document.getElementById('latitude').value);
+  const lng = parseFloat(document.getElementById('longitude').value);
+  if (!isNaN(lat) && !isNaN(lng)) placeMarker(lat, lng);
+}
+
+// ─── Drag & drop ──────────────────────────────────────────────────────────────
+function setupDragDrop() {
+  const zone = document.getElementById('upload-zone');
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('drag'));
+  zone.addEventListener('drop', e => {
+    e.preventDefault(); zone.classList.remove('drag');
+    const f = e.dataTransfer.files[0];
+    if (f && f.type.startsWith('image/')) { selectedFile = f; showPreview(f); }
+  });
+}
+
+function handleImageSelect(input) {
+  if (input.files && input.files[0]) {
+    selectedFile = input.files[0];
+    showPreview(selectedFile);
+  }
+}
+
+function showPreview(file) {
+    const reader = new FileReader();
+    reader.onload = e => {
+        const img = document.getElementById('preview-img');
+        img.src = e.target.result;
+        img.style.display = 'block';
+
+        // Hide the drop zone once image is loaded
+        
+    };
+    reader.readAsDataURL(file);
+}
+
+// ─── Submit analysis ──────────────────────────────────────────────────────────
+async function submitAnalysis() {
+  if (!selectedFile) { showToast('Please upload an image first.', 'error'); return; }
+
+  setLoading(true, 'Extracting image features...');
+  setTimeout(() => setLoadingMsg('Running Random Forest model...'), 1200);
+  setTimeout(() => setLoadingMsg('Generating visualizations...'), 2400);
+
+  const fd = new FormData();
+  fd.append('image', selectedFile);
+
+  const fields = {
+    'location_name': 'location-name', 'latitude': 'latitude', 'longitude': 'longitude',
+    'event_date': 'event-date', 'description': 'description',
+    'ndvi': 'f-ndvi', 'ndvi_change': 'f-ndvi-change', 'b3': 'f-b3',
+    'slope_mean': 'f-slope', 'brightness': 'f-brightness', 'ratio_rg_change': 'f-rg'
+  };
+  Object.entries(fields).forEach(([key, id]) => {
+    const val = document.getElementById(id).value.trim();
+    if (val) fd.append(key, val);
+  });
+
+  try {
+    const resp = await fetch('/api/analyze/', { method: 'POST', body: fd });
+    const data = await resp.json();
+
+    if (!resp.ok) throw new Error(data.error || 'Analysis failed');
+    if (data.status === 'failed') throw new Error(data.error_message || 'Pipeline error');
+
+    showResults(data);
+    showToast('Analysis completed successfully!', 'success');
+  } catch (err) {
+    showToast(err.message || 'Server error — check Django console.', 'error');
+  } finally {
+    setLoading(false);
+  }
+}
+
+function setLoading(on, msg='Processing...') {
+  document.getElementById('submit-btn').disabled = on;
+  document.getElementById('loader').style.display = on ? 'flex' : 'none';
+  document.getElementById('loader-msg').textContent = msg;
+}
+function setLoadingMsg(msg) { document.getElementById('loader-msg').textContent = msg; }
+
+// ─── Show results ─────────────────────────────────────────────────────────────
+function showResults(data) {
+  document.getElementById('result-panel').style.display = 'block';
+  document.getElementById('result-panel').scrollIntoView({ behavior: 'smooth' });
+
+  const prob = data.landslide_probability ?? 0;
+  const risk = data.risk_level || 'low';
+  const riskColors = { low:'#22c55e', moderate:'#f59e0b', high:'#ef4444', critical:'#8b5cf6' };
+
+  document.getElementById('res-location').textContent =
+    (data.location_name || 'Unknown location') + (data.event_date ? ' — ' + data.event_date : '');
+  document.getElementById('res-prob').textContent    = (prob * 100).toFixed(1) + '%';
+  document.getElementById('res-conf').textContent    = ((data.confidence_score ?? 0) * 100).toFixed(1) + '%';
+  document.getElementById('res-class').textContent   = data.predicted_class === 1 ? '⚠️ Landslide' : '✅ Clear';
+  document.getElementById('res-risk-text').textContent = risk.charAt(0).toUpperCase() + risk.slice(1);
+  document.getElementById('res-risk-text').style.color = riskColors[risk];
+
+  const probBar = document.getElementById('res-prob-bar');
+  probBar.style.width = (prob * 100) + '%';
+  probBar.style.background = riskColors[risk];
+
+  document.getElementById('res-risk-badge').innerHTML =
+    `<span class="risk-badge risk-${risk}"><span class="risk-dot"></span>${risk.toUpperCase()}</span>`;
+
+  // Visualization images
+  if (data.heatmap_url)      document.getElementById('viz-heatmap').src      = data.heatmap_url;
+  if (data.segmentation_url) document.getElementById('viz-segmentation').src = data.segmentation_url;
+  if (data.feature_chart_url)document.getElementById('viz-features').src     = data.feature_chart_url;
+
+  // Feature importance bars
+  const fi = data.feature_importance || {};
+  const fiNames = { ndvi:'NDVI', b3:'Band 3', slope_mean:'Slope', brightness:'Brightness', ndvi_change:'NDVI Δ', ratio_rg_change:'RG Ratio Δ' };
+  const maxImp  = Math.max(...Object.values(fi), 0.001);
+  document.getElementById('feat-importance-bars').innerHTML =
+    Object.entries(fi).sort((a,b)=>b[1]-a[1]).map(([k,v]) =>
+      `<div class="feat-row">
+        <div class="feat-name">${fiNames[k]||k}</div>
+        <div class="feat-bar"><div class="feat-fill" style="width:${(v/maxImp*100).toFixed(1)}%"></div></div>
+        <div class="feat-val">${(v*100).toFixed(1)}%</div>
+      </div>`
+    ).join('');
+
+  // Extracted features
+  const feats = ['ndvi','b3','slope_mean','brightness','ndvi_change','ratio_rg_change'];
+  document.getElementById('extracted-features').innerHTML =
+    feats.map(f =>
+      `<div class="feat-row">
+        <div class="feat-name">${fiNames[f]||f}</div>
+        <div class="feat-val" style="width:auto;color:var(--text);font-size:13px">${data[f] != null ? Number(data[f]).toFixed(4) : '—'}</div>
+      </div>`
+    ).join('');
+}
+
+function showViz(name, tab) {
+  document.querySelectorAll('.viz-img').forEach(i => i.classList.remove('active'));
+  document.querySelectorAll('.viz-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('viz-' + name).classList.add('active');
+  tab.classList.add('active');
+}
+
+// ─── History ─────────────────────────────────────────────────────────────────
+async function loadHistory() {
+  document.getElementById('history-loader').style.display = 'flex';
+  document.getElementById('history-table-wrap').style.display = 'none';
+  document.getElementById('history-empty').style.display = 'none';
+
+  try {
+    const resp = await fetch('/api/analyses/');
+    const data = await resp.json();
+
+    document.getElementById('history-loader').style.display = 'none';
+
+    if (!data.length) {
+      document.getElementById('history-empty').style.display = 'block';
+      return;
+    }
+
+    const riskLabel = r => r ? `<span class="risk-badge risk-${r}"><span class="risk-dot"></span>${r}</span>` : '—';
+    const statusColors = { pending:'#f59e0b', processing:'#3b82f6', completed:'#22c55e', failed:'#ef4444' };
+
+    document.getElementById('history-tbody').innerHTML = data.map(a => `
+      <tr>
+        <td>${a.image_url ? `<img class="thumb" src="${a.image_url}" alt=""/>` : '—'}</td>
+        <td><span style="font-weight:500">${a.location_name||'—'}</span></td>
+        <td style="color:var(--muted);font-family:var(--mono);font-size:12px">${a.event_date||a.created_at.slice(0,10)}</td>
+        <td>${riskLabel(a.risk_level)}</td>
+        <td style="font-family:var(--mono)">${a.landslide_probability != null ? (a.landslide_probability*100).toFixed(1)+'%' : '—'}</td>
+        <td><span style="color:${statusColors[a.status]||'#6b7280'};font-size:12px;font-family:var(--mono)">${a.status}</span></td>
+        <td><button class="btn btn-danger" onclick="deleteAnalysis(${a.id},this)">Delete</button></td>
+      </tr>`).join('');
+
+    document.getElementById('history-table-wrap').style.display = 'block';
+  } catch {
+    document.getElementById('history-loader').style.display = 'none';
+    showToast('Failed to load history.', 'error');
+  }
+}
+
+async function deleteAnalysis(id, btn) {
+  if (!confirm('Delete this analysis?')) return;
+  try {
+    await fetch(`/api/analyses/${id}/`, { method: 'DELETE' });
+    btn.closest('tr').remove();
+    showToast('Analysis deleted.', 'success');
+  } catch { showToast('Delete failed.', 'error'); }
+}
+
+// ─── Dashboard ────────────────────────────────────────────────────────────────
+async function loadDashboard() {
+  try {
+    const resp = await fetch('/api/stats/');
+    const data = await resp.json();
+
+    document.getElementById('stat-total').textContent    = data.total_analyses ?? 0;
+    document.getElementById('stat-completed').textContent= data.completed ?? 0;
+    document.getElementById('stat-detected').textContent = data.landslide_detected ?? 0;
+    document.getElementById('stat-avg').textContent      = data.avg_probability ? (data.avg_probability * 100).toFixed(1) + '%' : '—';
+
+    // Risk distribution chart
+    const rd = data.risk_distribution || {};
+    const labels = ['low','moderate','high','critical'];
+    const bgColors = ['rgba(34,197,94,.6)','rgba(245,158,11,.6)','rgba(239,68,68,.6)','rgba(139,92,246,.6)'];
+    const borderColors = ['#22c55e','#f59e0b','#ef4444','#8b5cf6'];
+
+    if (riskChart) riskChart.destroy();
+    const ctx = document.getElementById('risk-chart').getContext('2d');
+    riskChart = new Chart(ctx, {
+      type: 'doughnut',
+      data: {
+        labels: labels.map(l => l.charAt(0).toUpperCase() + l.slice(1)),
+        datasets: [{ data: labels.map(l => rd[l] || 0), backgroundColor: bgColors, borderColor: borderColors, borderWidth: 2 }]
+      },
+      options: {
+        plugins: {
+          legend: { labels: { color: '#8b949e', font: { size: 12 } } }
+        },
+        cutout: '65%'
+      }
+    });
+
+    // Recent list
+    const recentItems = (data.recent_analyses || []).map(a => {
+      const riskColors = { low:'#22c55e', moderate:'#f59e0b', high:'#ef4444', critical:'#8b5cf6' };
+      const c = riskColors[a.risk_level] || '#6b7280';
+      return `<div style="display:flex;align-items:center;gap:.75rem;padding:.6rem 0;border-bottom:1px solid var(--border)">
+        ${a.image_url ? `<img class="thumb" src="${a.image_url}" alt=""/>` : '<div class="thumb" style="background:var(--border);display:flex;align-items:center;justify-content:center">🛰</div>'}
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${a.location_name||'Unknown'}</div>
+          <div style="font-size:11px;color:var(--muted);font-family:var(--mono)">${a.created_at.slice(0,10)}</div>
+        </div>
+        <div style="color:${c};font-family:var(--mono);font-size:13px">${a.landslide_probability != null ? (a.landslide_probability*100).toFixed(0)+'%' : '—'}</div>
+      </div>`;
+    }).join('');
+    document.getElementById('recent-list').innerHTML = recentItems || '<div style="color:var(--muted);text-align:center;padding:2rem">No data yet</div>';
+
+  } catch { showToast('Failed to load dashboard.', 'error'); }
+}
+
+// ─── Toast ────────────────────────────────────────────────────────────────────
+function showToast(msg, type = 'success') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = `toast toast-${type} show`;
+  setTimeout(() => t.classList.remove('show'), 3500);
+}
+
+async function fetchSatelliteForLocation(lat, lon) {
+    map.closePopup();
+    showToast('Fetching satellite image...', 'success');
+
+    try {
+        const resp = await fetch(`/api/fetch-satellite/?lat=${lat}&lon=${lon}`);
+        const data = await resp.json();
+
+        if (!resp.ok) throw new Error(data.error);
+
+        // ── Show image preview ──────────────────────────────────────────────
+        const img = document.getElementById('preview-img');
+        img.src = data.image_url;
+        img.style.display = 'block';
+
+        // ── Set location name if empty ──────────────────────────────────────
+        if (!document.getElementById('location-name').value) {
+            document.getElementById('location-name').value =
+                data.scene_name.slice(0, 60);
+        }
+
+        // ── Store image path for analysis ───────────────────────────────────
+        document.getElementById('fetched-image-path').value = data.image_path;
+
+        // ── AUTO-FILL ML feature fields ─────────────────────────────────────
+        const featureMap = {
+            'f-ndvi':        data.ndvi,
+            'f-ndvi-change': data.ndvi_change,
+            'f-b3':          data.b3,
+            'f-slope':       data.slope_mean,
+            'f-brightness':  data.brightness,
+            'f-rg':          data.ratio_rg_change,
+        };
+
+        Object.entries(featureMap).forEach(([fieldId, value]) => {
+            const el = document.getElementById(fieldId);
+            if (el && value !== null && value !== undefined) {
+                el.value = parseFloat(value).toFixed(4);
+                // Flash green to show it was auto-filled
+                el.style.borderColor = '#22c55e';
+                el.style.background  = 'rgba(34,197,94,0.06)';
+                setTimeout(() => {
+                    el.style.borderColor = '';
+                    el.style.background  = '';
+                }, 2000);
+            }
+        });
+
+        showToast(
+            `Image fetched — ${Object.keys(featureMap).length} features auto-extracted!`,
+            'success'
+        );
+
+    } catch (err) {
+        showToast('Could not fetch satellite image: ' + err.message, 'error');
+    }
+}
+</script>
+</body>
+</html>
