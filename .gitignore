@@ -1,0 +1,89 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+venv/
+.env/
+.venv/
+env/
+ENV/
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE / editor settings
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Data files (optional – comment out if you need to track some)
+data/
+*.csv
+*.tsv
+*.xlsx
+*.pickle
+*.pkl
+
+# Model artifacts
+models/
+*.h5
+*.pt
+*.pth
+*.joblib
+*.sav
+
+# Django / project files
+db.sqlite3
+*.sqlite3
+media/
+media/*
+staticfiles/
+
+# Virtualenvs and environments
+venv_landslide/
+venv/
+.venv/
+env/
+ENV/
+
+# Python
+*.pyc
+*.pyo
+*.pyd
+__pycache__/
+
+# Testing
+.pytest_cache/
+coverage.xml
+htmlcov/
+
+# dotenv
+.env
+.env.*
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Windows
+Thumbs.db
+.DS_Store
+
+# VS Code
+.vscode/
+.vscode/*
